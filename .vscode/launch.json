@@ -1,7 +1,7 @@
 {
     "configurations": [
         {
-            "name": "C/C++: gcc.exe build and debug active file",
+            "name": "C/C++: gcc.exe",
             "type": "cppdbg",
             "request": "launch",
             "program": "${fileDirname}\\${fileBasenameNoExtension}.exe",
@@ -9,7 +9,7 @@
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
             "environment": [],
-            "externalConsole": false,
+            "externalConsole": true,
             "MIMode": "gdb",
             "miDebuggerPath": "C:\\mingw64\\bin\\gdb.exe",
             "setupCommands": [
@@ -25,6 +25,7 @@
                 }
             ],
             "preLaunchTask": "C/C++: gcc.exe build active file"
+            //"internalConsoleOptions": "neverOpen"
         }
     ],
     "version": "2.0.0"

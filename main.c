@@ -30,5 +30,7 @@ int main(int argc, char *argv[]){ //vmx.exe [filename.vmx] [filename.vmi] [m=M] 
         //printf("\nbueno, se q la mem es de tamanio %u chars, same as kb, a ver cuanto da el calculo\n", SIZE_MEM);
         //guardaImagen(mv);
     }
+    scanf("%u",&SIZE_MEM);
+    printf("\nbueno, se q la mem es de tamanio %u chars, same as kb, a ver cuanto da el calculo\n", SIZE_MEM);
     return 0;
 }

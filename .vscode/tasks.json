@@ -7,7 +7,7 @@
             "args": [
                 "-fdiagnostics-color=always",
                 "-g",
-                "${file}",
+                "${fileDirname}\\main.c",
                 "${fileDirname}\\TMV.c",
                 "-o",
                 "${fileDirname}\\${fileBasenameNoExtension}.exe",

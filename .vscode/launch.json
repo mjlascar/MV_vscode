@@ -5,7 +5,11 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${fileDirname}\\${fileBasenameNoExtension}.exe",
-            "args": ["${fileDirname}\\sample2.vmx"],
+            "args": [
+                "sysF2.vmx"
+                //"-d"
+                //"$sysF2i.vmi"
+            ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
             "environment": [],
@@ -24,8 +28,8 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "C/C++: gcc.exe build active file"
-            //"internalConsoleOptions": "neverOpen"
+            "preLaunchTask": "C/C++: gcc.exe build active file",
+            "internalConsoleOptions": "neverOpen"
         }
     ],
     "version": "2.0.0"

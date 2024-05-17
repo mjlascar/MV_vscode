@@ -83,7 +83,7 @@ TMV createMV(char* fname, char* vmiName, unsigned int SIZE_MEM){
                     codigoAMemoria(&maq,arch,tamCodigo);
                     if (tamKS>0)
                         KSaMemoria(&maq,arch,tamKS);
-                    maq.R[5]= ( ( maq.TDS[ baseMasOffset(maq.R[0]) ]>>16 )& 0xFFFF ) + offsetEP; //base del CS + offset del entry point
+                    maq.R[5]= ( maq.TDS[ baseMasOffset(maq.R[0]) ] & 0xFFFF0000 ) + offsetEP; //base del CS y offset del entry point
 
                 }else
                     maq.error[6]=1;
@@ -363,17 +363,21 @@ void avanzaUnaInstruccion(TMV *mv, TFunc func){
     short int codOp;
     char tamOpA, tamOpB;
     TOp op[2];
-    int ubiAux;
+    int ubiAux, i;
 
     leeInstruccion(mv, &codOp, &tamOpA, &tamOpB);
 
-    ubiAux= (mv->R[5] & 0x0000ffff) ; ///(asumimos que la base del CS=0 )+ offset ,MAL deberias ser como en el sidsasembler
+    i=0;
+    ubiAux= baseMasOffset(mv->R[5]) ; ///(asumimos que la base del CS=0 )+ offset ,MAL deberias ser como en el sidsasembler
     op[1]= guardaOperandos(mv, tamOpB, ubiAux);
     ubiAux+= (int) ( (~tamOpB) & 0b11); //le suma los que leyo del anterior
+    i+= (int) ( (~tamOpB) & 0b11);
     op[0]= guardaOperandos(mv, tamOpA, ubiAux);
     ubiAux+= (int) ( (~tamOpA) & 0b11); //le suma los que leyo del anterior
+    i+= (int) ( (~tamOpA) & 0b11);
 
-    mv->R[5]= ubiAux+1; //setea el IP en el siguiente, ignorando si el codOp es un salto
+    //mv->R[5]= mv->R[5] & 0xffff0000;
+    mv->R[5]= mv->R[5] + (i+1); //setea el IP en el siguiente, ignorando si el codOp es un salto
 
     if ( (codOp>=0 && codOp<=12) || (codOp>=16 && codOp<=26) || codOp==31 )
         func[codOp](mv, op);
@@ -392,8 +396,8 @@ void execute(TMV *mv){
     TFunc func;
     inicializaVectorFunc(func);
 
-    while ( hayError(*mv)==0 && (mv->R[5] & 0xffff0000)==0 && (mv->R[5] & 0x0000ffff)<(mv->TDS[0] & 0x0000ffff)){
-            //while IP2primerosBytes==0 es decir apunta al TDS[0], asumimos q ahi esta el CS && offset<size
+    while ( hayError(*mv)==0 && (((mv->R[5]>>16) & 0xffff) == (( mv->TDS[baseMasOffset(mv->R[0])] >>16)&0xFFFF )) && (mv->R[5] & 0xffff)<(mv->TDS[baseMasOffset(mv->R[0])] & 0xffff)){
+            //while IP2primerosBytes==0 es decir apunta al TDS[R[0]], pq ahi esta el CS && offset<size
         avanzaUnaInstruccion(mv,func);
 
     }
@@ -433,7 +437,7 @@ void disAssembler(TMV *mv, char* fname){
         inicializaVectorFuncDisass(funcDisass);
         for(i=0; i<tamCodigo; i++){
             leeInstruccion(mv, &codOp, &tamOpA, &tamOpB);
-            ubiAux= ((mv->TDS[ ( baseMasOffset(mv->R[0]) ) ]>>16) &0xFFFF) +(mv->R[5] & 0x0000ffff) ; //(con R[0]=CS) BaseCS+ offset
+            ubiAux= baseMasOffset(mv->R[5]);
             printf("[%X] %X ", (short int)ubiAux &0xFFFF , (mv->M[ubiAux] &0xFF));
             op[1]= guardaOperandosYDisass(mv, tamOpB, ubiAux);
             ubiAux+= (int) ( (~tamOpB) & 0b11); //le suma los que leyo del anterior
@@ -441,7 +445,9 @@ void disAssembler(TMV *mv, char* fname){
             op[0]= guardaOperandosYDisass(mv, tamOpA, ubiAux);
             ubiAux+= (int) ( (~tamOpA) & 0b11); //le suma los que leyo del anterior
             i+= (int) ( (~tamOpA) & 0b11);
-            mv->R[5]= ubiAux+1; //setea el IP en el siguiente
+
+            mv->R[5]= mv->R[5] & 0xffff0000;
+            mv->R[5]= mv->R[5] | (i+1); //setea el IP en el siguiente
 
             if ( (codOp>=0 && codOp<=12) || (codOp>=16 && codOp<=28) || codOp==31 ){
                 inicializaVectorFuncDisass(funcDisass); // lo inicializa cada vez q va a imprimir pq sino a veces se buguea y reemplaza los contenidos
@@ -575,6 +581,7 @@ TOp guardaOperandos(TMV *mv, char tamOp, int ubicacion){
     short int tam;
     TOp op;
 
+    //ubicacion= (mv->R[5] & 0xFFFF0000) | ubicacion;
     op.tipo= tamOp;
     tam= (short int) ( (~tamOp) & 0b11);
 
@@ -593,14 +600,14 @@ void leeInstruccion(TMV *mv, short int *codOp, char *tamOpA, char *tamOpB){
     char instruc;
     int ubicacion;
 
-    ubicacion= ((mv->TDS[0]>>16) &0xFFFF) +(mv->R[5] & 0x0000ffff) ; //(asumimos que TDS[0]=CS) BaseCS+ offset
+    ubicacion= baseMasOffset(mv->R[5]) ;
     instruc=  mv->M[ubicacion];
 
     *codOp= instruc & 0b11111;
     *tamOpA= (instruc >> 4) & 0b11;
     *tamOpB= (instruc >> 6) & 0b11;
 
-    //printf("\nLEYO INSTRUCCION: %X\n",instruc);
+    printf("\nLEYO INSTRUCCION: %X\n",instruc);
 }
 
 void setOp(TMV *mv, TOp *op, int nro){
@@ -620,7 +627,7 @@ void setOp(TMV *mv, TOp *op, int nro){
             offset+= offsetReg;
 
             baseEnReg= (baseEnReg>>16)& 0xFFFF ;
-            if (baseEnReg!=1){ //IF NOT SEGUNDA POSICION DE LA TDS (DS)
+            if (baseEnReg!=baseMasOffset(mv->R[1])){ //IF NOT SAME POSICION Q el indice de DS en LA TDS
                 printf("ERROR. El setOp quiere entrar a otro Segmento q no es DS. (%X)\n",baseEnReg);
                 mv->error[0]=1;
                 break;

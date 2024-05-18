@@ -280,11 +280,9 @@ void KSaMemoria(TMV* mv, FILE* arch, unsigned short int tamKS){
     while ( (i<finKS) && !(feof(arch)) ){
         fread(&aux,sizeof(char),1,arch);
     //    printf("%X ", aux);
-        mv->M[i] = aux;
+        mv->M[i++] = aux;
     }
 
-    if( !feof(arch) )/////////////////////////////////////////////////////////////////////////////////////////////////OJISIMO/////////////////////////////////////
-        mv->error[6]=1;
     //printf("\n\n");
 }
 
@@ -691,7 +689,7 @@ int getOp(TMV mv, TOp op){
 
     switch(op.tipo){
         case(0b00): //memoria
-            baseEnReg=  mv.R[ (unsigned int) (op.priByte & 0b1111) ]; //usually DS, osea 0x1
+            baseEnReg=  mv.R[ (unsigned int) (op.priByte & 0b1111) ]; //usually DS, osea 0x1, DIRECCION LOGICA
             //ACLARACION: SI O SI EL REGISTRO AL Q VA TIENE Q APUNTAR A UN LUGAR EN MEMORIA; RELATIVA AL COMIENZO DE UN SEGMENTO (TDS). pag 3 pdf lenguahe asm
 
             offset= (op.segByte&0xFF);
@@ -703,7 +701,8 @@ int getOp(TMV mv, TOp op){
             offset+= offsetReg;
 
             baseEnReg= (baseEnReg>>16)& 0xFFFF ;
-            if (baseEnReg!=1){ //IF NOT SEGUNDA POSICION DE LA TDS (DS)
+            if (baseEnReg!=baseMasOffset(mv.R[1])){ //IF NOT SAME POSICION Q el indice de DS en LA TDS
+                printf("ERROR. El getOp quiere entrar a otro Segmento q no es DS. (%X)\n",baseEnReg);
                 mv.error[0]=1;
                 break;
             }
@@ -787,7 +786,7 @@ int modificaCC(int aux){
 
 void MOV(TMV *mv, TOp op[2]){
     setOp(mv, &op[0], getOp(*mv, op[1]));
-    //printf("se hizo MOV un operando de tipo %X en op[0] con valores en hexa %X %X %X\n", op[0].tipo, op[0].priByte, op[0].segByte, op[0].terByte);
+    printf("se hizo MOV un operando de tipo %X en op[0] con valores en hexa %X %X %X\n", op[0].tipo, op[0].priByte, op[0].segByte, op[0].terByte);
     //printf("y guardo un: %d \n", getOp(*mv,op[0]));
 }
 
@@ -989,11 +988,11 @@ void leeHeaderImagen(FILE* arch, unsigned short int *version, unsigned short int
 
 void guardaImagen(TMV mv){
     FILE* arch;
-    unsigned short int version=0, tamRAM;
+    unsigned short int version, tamRAM;
     char identificador[6]; // son 6 por el \n??
     int i, aux;
 
-    version=1; //si llego a un breakpoint es porque es version 2
+    version=1;
     sprintf(identificador, "VMI24");
     tamRAM= mv.ramKiB;
 
@@ -1140,8 +1139,7 @@ void SYS(TMV *mv, TOp op[2]){
                     while (auxc!='g' && auxc!='q' && auxc!='G' && auxc!='Q' && finciclo!=1){
                         TFunc func;
                         inicializaVectorFunc(func);
-
-                        if ( hayError(*mv)==0 && (mv->R[5] & 0xffff0000)==0 && (mv->R[5] & 0x0000ffff)<(mv->TDS[0] & 0x0000ffff)){
+                        if ( hayError(*mv)==0 && (((mv->R[5]>>16) & 0xffff) == (( mv->TDS[baseMasOffset(mv->R[0])] >>16)&0xFFFF )) && (mv->R[5] & 0xffff)<(mv->TDS[baseMasOffset(mv->R[0])] & 0xffff)){
                             //if IP2primerosBytes==0 es decir apunta al TDS[0], asumimos q ahi esta el CS && offset<size
                             avanzaUnaInstruccion(mv,func);
                             guardaImagen(*mv);

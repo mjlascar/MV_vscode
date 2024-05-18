@@ -6,9 +6,9 @@
             "request": "launch",
             "program": "${fileDirname}\\${fileBasenameNoExtension}.exe",
             "args": [
-                "sysF2.vmx"
+                "sysF2.vmx",
+                "sysF2i.vmi"
                 //"-d"
-                //"$sysF2i.vmi"
             ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

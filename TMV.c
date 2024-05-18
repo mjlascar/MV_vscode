@@ -611,9 +611,11 @@ void leeInstruccion(TMV *mv, short int *codOp, char *tamOpA, char *tamOpB){
 void setOp(TMV *mv, TOp *op, int nro){
     int baseEnReg, offset, offsetReg, ubicacion;
     unsigned int regNro;
+    unsigned short int i;
 
     switch(op->tipo){
         case(0b00): //memoria
+            i = mv.R[ (unsigned short int) ((op.priByte>>6) & 0b11) ]; //cantBytes a guardar
             baseEnReg=  0 | mv->R[ (unsigned int) (op->priByte & 0b1111) ]; //usually DS, osea 0x1
             //ACLARACION: SI O SI EL REGISTRO AL Q VA TIENE Q APUNTAR A UN LUGAR EN MEMORIA; RELATIVA AL COMIENZO DE UN SEGMENTO (TDS). pag 3 pdf lenguahe asm
             offset= (op->segByte&0xFF);
@@ -625,18 +627,17 @@ void setOp(TMV *mv, TOp *op, int nro){
             offset+= offsetReg;
 
             baseEnReg= (baseEnReg>>16)& 0xFFFF ;
-            if (baseEnReg!=baseMasOffset(mv->R[1])){ //IF NOT SAME POSICION Q el indice de DS en LA TDS
-                printf("ERROR. El setOp quiere entrar a otro Segmento q no es DS. (%X)\n",baseEnReg);
-                mv->error[0]=1;
-                break;
-            }
+            printf("va a guardar data en el segmento TDS[%u]",baseEnReg);
 
             ubicacion= ((mv->TDS[ baseEnReg ]>>16) & 0xFFFF) + offset;
-            if ( offset<0 || (ubicacion >= ((mv->TDS[ baseEnReg ]>>16) + (mv->TDS[ baseEnReg ] & 0xFFFF))) ){ //IF NOT se cae del DS
+            if ( offset<0 || (ubicacion >= ((mv->TDS[ baseEnReg ]>>16) + (mv->TDS[ baseEnReg ] & 0xFFFF))) ){ //IF NOT se cae del segmento
                 mv->error[0]=1;
                 break;
             }
             //printf("el int q esta por ser copiado es %d\n", nro);
+            for (i; i>0 ; i--){
+                aaaaaaaaaa voy en este y el de getop
+            }
             mv->M[ubicacion] = (nro>>24 & 0xFF);
             mv->M[ubicacion+1] = (nro>>16 & 0xFF);
             mv->M[ubicacion+2] = (nro>>8 & 0xFF);
@@ -686,9 +687,11 @@ void setOp(TMV *mv, TOp *op, int nro){
 
 int getOp(TMV mv, TOp op){
     int aux=0, baseEnReg, offset, offsetReg, ubiMem;
+    unsigned short int i;
 
     switch(op.tipo){
         case(0b00): //memoria
+            i = mv.R[ (unsigned short int) ((op.priByte>>6) & 0b11) ]; //cantBytes a leer
             baseEnReg=  mv.R[ (unsigned int) (op.priByte & 0b1111) ]; //usually DS, osea 0x1, DIRECCION LOGICA
             //ACLARACION: SI O SI EL REGISTRO AL Q VA TIENE Q APUNTAR A UN LUGAR EN MEMORIA; RELATIVA AL COMIENZO DE UN SEGMENTO (TDS). pag 3 pdf lenguahe asm
 
@@ -700,19 +703,18 @@ int getOp(TMV mv, TOp op){
             offset= (int) offset;
             offset+= offsetReg;
 
-            baseEnReg= (baseEnReg>>16)& 0xFFFF ;
-            if (baseEnReg!=baseMasOffset(mv.R[1])){ //IF NOT SAME POSICION Q el indice de DS en LA TDS
-                printf("ERROR. El getOp quiere entrar a otro Segmento q no es DS. (%X)\n",baseEnReg);
-                mv.error[0]=1;
-                break;
-            }
+            baseEnReg= (baseEnReg>>16) & 0xFFFF ;
+            printf("va a retirar data del segmento TDS[%u]",baseEnReg);
 
             ubiMem= ((mv.TDS[ baseEnReg ] >>16) & 0xFFFF) + offset;
             if ( offset<0 || (ubiMem >= ((mv.TDS[ baseEnReg ]>>16) + (mv.TDS[ baseEnReg ] & 0xFFFF))) ){ //IF NOT se cae del DS
                 mv.error[0]=1;
                 break;
             }
-
+            
+            for (i; i>0 ; i--){
+                aaaaaaaaaa voy en este y el de setop
+            }
             aux= (mv.M[ubiMem] & 0xFF);
             aux= (aux<<8) | (mv.M[ubiMem+1] & 0xFF);
             aux= (aux<<8) | (mv.M[ubiMem+2] & 0xFF);
@@ -1140,7 +1142,7 @@ void SYS(TMV *mv, TOp op[2]){
                         TFunc func;
                         inicializaVectorFunc(func);
                         if ( hayError(*mv)==0 && (((mv->R[5]>>16) & 0xffff) == (( mv->TDS[baseMasOffset(mv->R[0])] >>16)&0xFFFF )) && (mv->R[5] & 0xffff)<(mv->TDS[baseMasOffset(mv->R[0])] & 0xffff)){
-                            //if IP2primerosBytes==0 es decir apunta al TDS[0], asumimos q ahi esta el CS && offset<size
+                            //if IP2primerosBytes==0 es decir apunta al TDS[R[0]], asumimos q ahi esta el CS && offset<size
                             avanzaUnaInstruccion(mv,func);
                             guardaImagen(*mv);
                             //printf("guarda imagen\n");
@@ -1162,16 +1164,16 @@ void SYS(TMV *mv, TOp op[2]){
 }
 
 void JMP(TMV *mv, TOp op[2]){
-    if (getOp(*mv, op[1]) < ( mv->TDS[0] & 0xFFFF ) ){ // comparo q el corrimiento desde el inicio del CS (el cual asumo en TDS[0] Y tmb asumo q empieza en mv->M[0] ), no se caiga
-        mv->R[5]= getOp(*mv, op[1]);
+    if (getOp(*mv, op[1]) < ( mv->TDS[ baseMasOffset(mv->R[0]) ] & 0xFFFF ) ){ // comparo q el corrimiento desde el inicio del CS (el cual asumo en TDS[R[0]] ), no se caiga
+        mv->R[5]= (mv->R[5] & 0xFFFF0000) + getOp(*mv, op[1]);
     }else
         mv->error[0]=1;
 }
 
 void JZ(TMV *mv, TOp op[2]){
-    if ( getOp(*mv, op[1]) < ( mv->TDS[0] & 0xFFFF ) ){ // comparo q el corrimiento desde el inicio del CS (el cual asumo en TDS[0] Y tmb asumo q empieza en mv->M[0] ), no se caiga
+    if ( getOp(*mv, op[1]) < ( mv->TDS[ baseMasOffset(mv->R[0]) ] & 0xFFFF ) ){ // comparo q el corrimiento desde el inicio del CS (el cual asumo en TDS[R[0]] ), no se caiga
         if (mv->R[8] == 0x40000000) // chequea q N=0 y Z=1
-            mv->R[5]= getOp(*mv, op[1]);
+            mv->R[5]= (mv->R[5] & 0xFFFF0000) + getOp(*mv, op[1]);
         //else
             //printf("no hizo el salto\n");
     }else
@@ -1179,9 +1181,9 @@ void JZ(TMV *mv, TOp op[2]){
 }
 
 void JP(TMV *mv, TOp op[2]){
-    if ( getOp(*mv, op[1]) < ( mv->TDS[0] & 0xFFFF ) ){ // comparo q el corrimiento desde el inicio del CS (el cual asumo en TDS[0] Y tmb asumo q empieza en mv->M[0] ), no se caiga
+    if ( getOp(*mv, op[1]) < ( mv->TDS[ baseMasOffset(mv->R[0]) ] & 0xFFFF ) ){ // comparo q el corrimiento desde el inicio del CS (el cual asumo en TDS[R[0]] ), no se caiga
         if (mv->R[8] == 0) // chequea q N=0 y Z=0
-            mv->R[5]= getOp(*mv, op[1]);
+            mv->R[5]= (mv->R[5] & 0xFFFF0000) + getOp(*mv, op[1]);
         //else
             //printf("no hizo el salto\n");
     }else
@@ -1189,9 +1191,9 @@ void JP(TMV *mv, TOp op[2]){
 }
 
 void JN(TMV *mv, TOp op[2]){
-    if ( getOp(*mv, op[1]) < ( mv->TDS[0] & 0xFFFF ) ){ // comparo q el corrimiento desde el inicio del CS (el cual asumo en TDS[0] Y tmb asumo q empieza en mv->M[0] ), no se caiga
+    if ( getOp(*mv, op[1]) < ( mv->TDS[ baseMasOffset(mv->R[0]) ] & 0xFFFF ) ){ // comparo q el corrimiento desde el inicio del CS (el cual asumo en TDS[R[0]] ), no se caiga
         if (mv->R[8] == 0x80000000) // chequea q N=1 y Z=0
-            mv->R[5]= getOp(*mv, op[1]);
+            mv->R[5]= (mv->R[5] & 0xFFFF0000) + getOp(*mv, op[1]);
         //else
             //printf("no hizo el salto\n");
     }else
@@ -1199,9 +1201,9 @@ void JN(TMV *mv, TOp op[2]){
 }
 
 void JNZ(TMV *mv, TOp op[2]){
-    if ( getOp(*mv, op[1]) < ( mv->TDS[0] & 0xFFFF ) ){ // comparo q el corrimiento desde el inicio del CS (el cual asumo en TDS[0] Y tmb asumo q empieza en mv->M[0] ), no se caiga
+    if ( getOp(*mv, op[1]) < ( mv->TDS[ baseMasOffset(mv->R[0]) ] & 0xFFFF ) ){ // comparo q el corrimiento desde el inicio del CS (el cual asumo en TDS[R[0]] ), no se caiga
         if ( (mv->R[8] == 0x80000000) | (mv->R[8] == 0) ) // chequea q (N=1 y Z=0) o (N=0 y Z=0)
-            mv->R[5]= getOp(*mv, op[1]);
+            mv->R[5]= (mv->R[5] & 0xFFFF0000) + getOp(*mv, op[1]);
         //else
             //printf("no hizo el salto\n");
     }else
@@ -1209,9 +1211,9 @@ void JNZ(TMV *mv, TOp op[2]){
 }
 
 void JNP(TMV *mv, TOp op[2]){
-    if ( getOp(*mv, op[1]) < ( mv->TDS[0] & 0xFFFF ) ){ // comparo q el corrimiento desde el inicio del CS (el cual asumo en TDS[0] Y tmb asumo q empieza en mv->M[0] ), no se caiga
+    if ( getOp(*mv, op[1]) < ( mv->TDS[ baseMasOffset(mv->R[0]) ] & 0xFFFF ) ){ // comparo q el corrimiento desde el inicio del CS (el cual asumo en TDS[R[0]] ), no se caiga
         if ( (mv->R[8] == 0x80000000) | (mv->R[8] == 0x40000000) ) // chequea q (N=1 y Z=0) o (N=0 y Z=1)
-            mv->R[5]= getOp(*mv, op[1]);
+            mv->R[5]= (mv->R[5] & 0xFFFF0000) + getOp(*mv, op[1]);
         //else
             //printf("no hizo el salto\n");
     }else
@@ -1219,9 +1221,9 @@ void JNP(TMV *mv, TOp op[2]){
 }
 
 void JNN(TMV *mv, TOp op[2]){
-    if ( getOp(*mv, op[1]) < ( mv->TDS[0] & 0xFFFF ) ){ // comparo q el corrimiento desde el inicio del CS (el cual asumo en TDS[0] Y tmb asumo q empieza en mv->M[0] ), no se caiga
+    if ( getOp(*mv, op[1]) < ( mv->TDS[ baseMasOffset(mv->R[0]) ] & 0xFFFF ) ){ // comparo q el corrimiento desde el inicio del CS (el cual asumo en TDS[R[0]] ), no se caiga
         if ( (mv->R[8] == 0x40000000) | (mv->R[8] == 0) ) // chequea q (N=0 y Z=1) o (N=0 y Z=0)
-            mv->R[5]= getOp(*mv, op[1]);
+            mv->R[5]= (mv->R[5] & 0xFFFF0000) + getOp(*mv, op[1]);
         //else
             //printf("no hizo el salto\n");
     }else
@@ -1250,19 +1252,54 @@ void STOP(TMV *mv, TOp op[2]){
     mv->error[3]=1;
 }
 
-/*
-void PUSH (TMV *mv, TOp op[2]){    //NUEVO   el getop devuelve la info en 4 bytes
-    mv->R[6] =- 4
+void PUSH (TMV *mv, TOp op[2]){
+    mv->R[6] =- 4;
     if (mv->R[6] < mv->R[3])
         mv->error[4]= 1;
     else{
         TOp aux;
-        aux.tipo= 0b10;
-        aux.priByte= getOp(mv, mv->R[6]);
-        aux.segByte=
-        aux.terByte=
-        op[1] = cambiaEndian();
-        offset= offset<<16; offset= offset>>16; //propaga el signo
+        aux.tipo= 0;
+        aux.priByte= 0b00000110; //emula un operando de memoria long con sus bits seteados en 6, para ir al R[SP]
+        aux.segByte= aux.terByte= 0;
+        setOp(mv,aux, getOp(*mv,op[1]) );
     }
 
-}*/
+}
+
+void POP (TMV *mv, TOp op[2]){
+    
+    if ( baseMasOffset(mv->R[6]) >= ( baseMasOffset( [baseMasOffset(mv->R[3])] ) ) ) // i could use (a >= (b-3) )para q tmb chequee q lea los 4 bytes enteritos
+    //pero no lo hago porque siempre se pushea y popea de a celdas de a 4 bytes
+        mv->error[5]= 1;
+    else{
+        TOp aux;
+        aux.tipo= 0;
+        aux.priByte= 0b00000110; //emula un operando de memoria long con sus bits seteados en 6, para ir al R[SP]
+        aux.segByte= aux.terByte= 0;
+        setOp(mv, op[1], getOp(*mv,aux));
+        mv->R[6] =+ 4;
+        
+    }
+
+}
+
+void CALL(TMV *mv, TOp op[2]){
+    TOp ip;
+    ip.tipo= 0;
+    ip.priByte= 0b00000101; //emula un operando de memoria long con sus bits seteados en 5, para ir al R[IP]
+    ip.segByte= ip.terByte= 0;
+
+    TOp aux = op[1];
+    op[1]= ip;
+    PUSH(mv, op);
+    op[1]= aux;
+    JMP(mv,op);
+
+}
+
+void RET(TMV *mv, TOp[2]){
+    op[1].tipo= 0;
+    op[1].priByte= 0b00000101; //pone al op[1] como uno de memoria long con sus bits seteados en 5, para ir al R[IP]
+    op[1].segByte= op[1].terByte= 0;
+    POP(mv,op);
+}

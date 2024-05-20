@@ -7,8 +7,8 @@
             "program": "${fileDirname}\\${fileBasenameNoExtension}.exe",
             "args": [
                 "string2.vmx",
-                //"stringi.vmi"
-                "-d"
+                "stringi.vmi"
+                //"-d"
             ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

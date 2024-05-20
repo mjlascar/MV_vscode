@@ -59,6 +59,7 @@ TMV createMV(char* fname, char* vmiName, unsigned int SIZE_MEM){
                         else
                             maq.TDS[n]= 0;
                         maq.TDS[n]= (maq.TDS[n]<<16) | tamCodigo;
+                        maq.R[5]= ( (n<<16) & 0xFFFF0000 ) + offsetEP; //indice en TDS del CS y offset del entry point
                         n++;
                     }
                     if(tamDS>0){ //en version 1 tamDS= SIZE_MEM - tamCodigo;
@@ -84,7 +85,7 @@ TMV createMV(char* fname, char* vmiName, unsigned int SIZE_MEM){
                     codigoAMemoria(&maq,arch,tamCodigo);
                     if (tamKS>0)
                         KSaMemoria(&maq,arch,tamKS);
-                    maq.R[5]= ( maq.TDS[ baseMasOffset(maq.R[0]) ] & 0xFFFF0000 ) + offsetEP; //base del CS y offset del entry point
+                    //maq.R[5]= ( maq.TDS[ baseMasOffset(maq.R[0]) ] & 0xFFFF0000 ) + offsetEP; //base del CS y offset del entry point
 
                 }else
                     maq.error[6]=1;
@@ -371,7 +372,8 @@ void avanzaUnaInstruccion(TMV *mv, TFunc func){
     leeInstruccion(mv, &codOp, &tamOpA, &tamOpB);
 
     i=0;
-    ubiAux= baseMasOffset(mv->R[5]) ; ///(asumimos que la base del CS=0 )+ offset ,MAL deberias ser como en el sidsasembler
+    //ubiAux= baseMasOffset(mv->R[5]) ; ///(asumimos que la base del CS=0 )+ offset ,MAL deberias ser como en el sidsasembler
+    ubiAux= ((mv->TDS[(mv->R[5]>>16) & 0xFFFF]>>16 )& 0xFFFF) + (mv->R[5] & 0xFFFF);
     op[1]= guardaOperandos(mv, tamOpB, ubiAux);
     ubiAux+= (int) ( (~tamOpB) & 0b11); //le suma los que leyo del anterior
     i+= (int) ( (~tamOpB) & 0b11);
@@ -399,8 +401,8 @@ void execute(TMV *mv){
     TFunc func;
     inicializaVectorFunc(func);
 
-    while ( hayError(*mv)==0 && (((mv->R[5]>>16) & 0xffff) == (( mv->TDS[baseMasOffset(mv->R[0])] >>16)&0xFFFF )) && (mv->R[5] & 0xffff)<(mv->TDS[baseMasOffset(mv->R[0])] & 0xffff)){
-            //while IP2primerosBytes==0 es decir apunta al TDS[R[0]], pq ahi esta el CS && offset<size
+    while ( hayError(*mv)==0 && (((mv->R[5]>>16) & 0xffff) == (baseMasOffset(mv->R[0])) )&& (mv->R[5] & 0xffff)<(mv->TDS[baseMasOffset(mv->R[0])] & 0xffff)){
+            //while IP2primerosBytes apunta al R[0] osea el indice de la TDS del CS && offset<size
         avanzaUnaInstruccion(mv,func);
 
     }
@@ -470,7 +472,8 @@ void disAssembler(TMV *mv, char* fname){
             if (i==offsetEP)
                 printf(">");
             leeInstruccion(mv, &codOp, &tamOpA, &tamOpB);
-            ubiAux= baseMasOffset(mv->R[5]);
+            //ubiAux= baseMasOffset(mv->R[5]);
+            ubiAux= ((mv->TDS[(mv->R[5]>>16) & 0xFFFF]>>16 )& 0xFFFF) + (mv->R[5] & 0xFFFF);
             printf("[%04X] %X ", (short int)ubiAux &0xFFFF , (mv->M[ubiAux] &0xFF));
             op[1]= guardaOperandosYDisass(mv, tamOpB, ubiAux);
             ubiAux+= (int) ( (~tamOpB) & 0b11); //le suma los que leyo del anterior
@@ -633,7 +636,8 @@ void leeInstruccion(TMV *mv, short int *codOp, char *tamOpA, char *tamOpB){
     char instruc;
     int ubicacion;
 
-    ubicacion= baseMasOffset(mv->R[5]) ;
+    //ubicacion= baseMasOffset(mv->R[5]) ;
+    ubicacion= ((mv->TDS[(mv->R[5]>>16) & 0xFFFF]>>16 )& 0xFFFF) + (mv->R[5] & 0xFFFF);
     instruc=  mv->M[ubicacion];
 
     *codOp= instruc & 0b11111;
@@ -1168,8 +1172,8 @@ void SYS(TMV *mv, TOp op[2]){
                     while (auxc!='g' && auxc!='q' && auxc!='G' && auxc!='Q' && finciclo!=1){
                         TFunc func;
                         inicializaVectorFunc(func);
-                        if ( hayError(*mv)==0 && (((mv->R[5]>>16) & 0xffff) == (( mv->TDS[baseMasOffset(mv->R[0])] >>16)&0xFFFF )) && (mv->R[5] & 0xffff)<(mv->TDS[baseMasOffset(mv->R[0])] & 0xffff)){
-                            //if IP2primerosBytes==0 es decir apunta al TDS[R[0]], asumimos q ahi esta el CS && offset<size
+                        if ( hayError(*mv)==0 && (((mv->R[5]>>16) & 0xffff) == (baseMasOffset(mv->R[0]))) && (mv->R[5] & 0xffff)<(mv->TDS[baseMasOffset(mv->R[0])] & 0xffff)){
+                            //if IP2primerosBytes igual al R[0] osea el indice de la TDS de CS && offset<size
                             
                             avanzaUnaInstruccion(mv,func); //si entra a otro SYS 15 se vuelve inception
                             guardaImagen(*mv);

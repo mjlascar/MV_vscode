@@ -77,7 +77,8 @@ TMV createMV(char* fname, char* vmiName, unsigned int SIZE_MEM){
                         maq.R[3]= (n<<16); //SS
                         maq.TDS[n]= 0 | baseMasOffset(maq.TDS[n-1]);
                         maq.TDS[n]= (maq.TDS[n]<<16) | tamSS;
-                        maq.R[6]= baseMasOffset( maq.TDS[ baseMasOffset( maq.R[3] ) ] ); //SP
+                        maq.R[6]= maq.R[3] | ( maq.TDS[ baseMasOffset( maq.R[3] ) ] & 0xFFFF ); //SP con dir logica
+                        //maq.R[6]= baseMasOffset( maq.TDS[ baseMasOffset( maq.R[3] ) ] ); //SP con dir fisica
                     }
 
                     codigoAMemoria(&maq,arch,tamCodigo);
@@ -312,8 +313,10 @@ void inicializaVectorFunc(TFunc func) {
     func[24] = LDL;
     func[25] = LDH;
     func[26] = NOT;
-    //func[27] = PUSH; //NUEVO
-    //func[28] = POP;  //NUEVO
+    func[27] = PUSH; 
+    func[28] = POP;
+    func[29] = CALL;
+    func[30] = RET;
     func[31] = STOP;
 
 }
@@ -344,8 +347,10 @@ void inicializaVectorFuncDisass(char *func[32]) {
     func[24] = "LDL";
     func[25] = "LDH";
     func[26] = "NOT";
-    func[27] = "PUSH"; //NUEVO
-    func[28] = "POP";  //NUEVO
+    func[27] = "PUSH"; 
+    func[28] = "POP";
+    func[29] = "CALL";
+    func[30] = "RET";  
     func[31] = "STOP";
 
 }
@@ -377,7 +382,7 @@ void avanzaUnaInstruccion(TMV *mv, TFunc func){
     //mv->R[5]= mv->R[5] & 0xffff0000;
     mv->R[5]= mv->R[5] + (i+1); //setea el IP en el siguiente, ignorando si el codOp es un salto
 
-    if ( (codOp>=0 && codOp<=12) || (codOp>=16 && codOp<=26) || codOp==31 )
+    if ( (codOp>=0 && codOp<=12) || (codOp>=16 && codOp<=31 ) )
         func[codOp](mv, op);
     else
         mv->error[2]=1;
@@ -420,23 +425,53 @@ void execute(TMV *mv){
 
 void disAssembler(TMV *mv, char* fname){
     short int codOp;
-    char tamOpA, tamOpB;
+    char tamOpA, tamOpB, aux;
     FILE* arch;
-    unsigned short int tamCodigo;
+    unsigned short int version, tamCodigo, asd, tamKS=0, offsetEP;
     char identificador[6]; // son 6 por el \n??
     TOp op[2];
-    int ubiAux, i;
+    int ubiAux, i, j;
     char *funcDisass[32], str[6];
 
     if ( (arch= fopen(fname,"rb")) != NULL){
-        leeHeaderV1(arch, &tamCodigo, identificador);
+
+        fseek(arch,5,SEEK_SET);
+        fread(&aux,sizeof(char),1,arch);
+        version= (unsigned short int) aux;
+        fseek(arch,0,SEEK_SET);
+        if(version==1)
+            leeHeaderV1(arch, &tamCodigo, identificador);
+        else
+            leeHeaderV2(arch, &tamCodigo, &asd, &asd, &asd, &tamKS, &offsetEP, identificador);
         fclose(arch);
+
+        i=0;
+        while(i<(tamKS-1)){
+            j=i;
+            printf("[%04X] ",i);
+            while( (mv->M[j]!=0x00) && (j<(i+6)) )
+                printf("%02X ", (mv->M[j++] & 0xFF ));
+
+            if(mv->M[j]!=0x00)
+                printf(".. ");
+            else
+                printf("00 ");
+            
+            printf("| \"");
+
+            while( mv->M[i]!=0x00 )
+                printf("%c",mv->M[i++]);
+            printf("\"\n");
+            i++;
+        }
 
         inicializaVectorFuncDisass(funcDisass);
         for(i=0; i<tamCodigo; i++){
+            if (i==offsetEP)
+                printf(">");
             leeInstruccion(mv, &codOp, &tamOpA, &tamOpB);
             ubiAux= baseMasOffset(mv->R[5]);
-            printf("[%X] %X ", (short int)ubiAux &0xFFFF , (mv->M[ubiAux] &0xFF));
+            printf("[%04X] %X ", (short int)ubiAux &0xFFFF , (mv->M[ubiAux] &0xFF));
             op[1]= guardaOperandosYDisass(mv, tamOpB, ubiAux);
             ubiAux+= (int) ( (~tamOpB) & 0b11); //le suma los que leyo del anterior
             i+= (int) ( (~tamOpB) & 0b11);
@@ -447,7 +482,7 @@ void disAssembler(TMV *mv, char* fname){
             mv->R[5]= mv->R[5] & 0xffff0000;
             mv->R[5]= mv->R[5] | (i+1); //setea el IP en el siguiente
 
-            if ( (codOp>=0 && codOp<=12) || (codOp>=16 && codOp<=28) || codOp==31 ){
+            if ( (codOp>=0 && codOp<=12) || (codOp>=16 && codOp<=31 ) ){
                 inicializaVectorFuncDisass(funcDisass); // lo inicializa cada vez q va a imprimir pq sino a veces se buguea y reemplaza los contenidos
                 printf("\t| %s\t", funcDisass[codOp]);
                 imprimeOp(*mv, op[0], str);
@@ -605,17 +640,17 @@ void leeInstruccion(TMV *mv, short int *codOp, char *tamOpA, char *tamOpB){
     *tamOpA= (instruc >> 4) & 0b11;
     *tamOpB= (instruc >> 6) & 0b11;
 
-    printf("\nLEYO INSTRUCCION: %X\n",instruc);
+    //printf("\nLEYO INSTRUCCION: %X\n",instruc);
 }
 
 void setOp(TMV *mv, TOp *op, int nro){
     int baseEnReg, offset, offsetReg, ubicacion;
     unsigned int regNro;
-    unsigned short int i;
+    unsigned short int i, n;
 
     switch(op->tipo){
         case(0b00): //memoria
-            i = mv.R[ (unsigned short int) ((op.priByte>>6) & 0b11) ]; //cantBytes a guardar
+            i = (unsigned short int) (~(op->priByte>>6) & 0b11); //cantBytes a guardar -1
             baseEnReg=  0 | mv->R[ (unsigned int) (op->priByte & 0b1111) ]; //usually DS, osea 0x1
             //ACLARACION: SI O SI EL REGISTRO AL Q VA TIENE Q APUNTAR A UN LUGAR EN MEMORIA; RELATIVA AL COMIENZO DE UN SEGMENTO (TDS). pag 3 pdf lenguahe asm
             offset= (op->segByte&0xFF);
@@ -635,22 +670,19 @@ void setOp(TMV *mv, TOp *op, int nro){
                 break;
             }
             //printf("el int q esta por ser copiado es %d\n", nro);
+            mv->M[ubicacion++] = (nro>>24 & 0xFF);
+            n=16;
             for (i; i>0 ; i--){
-                aaaaaaaaaa voy en este y el de getop
+                mv->M[ubicacion++] = (nro>>n & 0xFF); //primera iteracion: >>16, 2da it: >>8, 3ra it: >>0
+                n= n-8;
             }
-            mv->M[ubicacion] = (nro>>24 & 0xFF);
-            mv->M[ubicacion+1] = (nro>>16 & 0xFF);
-            mv->M[ubicacion+2] = (nro>>8 & 0xFF);
-            mv->M[ubicacion+3] = (nro & 0xFF);
+            //mv->M[ubicacion] = (nro>>16 & 0xFF);
+            //mv->M[ubicacion+1] = (nro>>8 & 0xFF);
+            //mv->M[ubicacion+2] = (nro & 0xFF);
             break;
 
         case(0b10): //registro
             regNro=  (unsigned int) (op->priByte & 0b1111);
-            if (regNro<0 || regNro>15){
-                printf("ERROR. Se quiere meter a un registro <0 o >15 \n");
-                mv->error[2]=1;
-                break;
-            }
             switch(op->priByte>>4 & 0b11){ //evalua los bits en las posiciones 5 y 6, contando de menor a mayor. Sector del registro a leer
                 case(0b00): //EAX 4bytes mas significativos
                     mv->R[ regNro ] = nro;
@@ -691,7 +723,7 @@ int getOp(TMV mv, TOp op){
 
     switch(op.tipo){
         case(0b00): //memoria
-            i = mv.R[ (unsigned short int) ((op.priByte>>6) & 0b11) ]; //cantBytes a leer
+            i = (unsigned short int) (~(op.priByte>>6) & 0b11); //cantBytes a leer -1
             baseEnReg=  mv.R[ (unsigned int) (op.priByte & 0b1111) ]; //usually DS, osea 0x1, DIRECCION LOGICA
             //ACLARACION: SI O SI EL REGISTRO AL Q VA TIENE Q APUNTAR A UN LUGAR EN MEMORIA; RELATIVA AL COMIENZO DE UN SEGMENTO (TDS). pag 3 pdf lenguahe asm
 
@@ -707,18 +739,15 @@ int getOp(TMV mv, TOp op){
             printf("va a retirar data del segmento TDS[%u]",baseEnReg);
 
             ubiMem= ((mv.TDS[ baseEnReg ] >>16) & 0xFFFF) + offset;
-            if ( offset<0 || (ubiMem >= ((mv.TDS[ baseEnReg ]>>16) + (mv.TDS[ baseEnReg ] & 0xFFFF))) ){ //IF NOT se cae del DS
+            if ( offset<0 || (ubiMem >= ((mv.TDS[ baseEnReg ]>>16) + (mv.TDS[ baseEnReg ] & 0xFFFF))) ){ //IF NOT se cae del Segmento
                 mv.error[0]=1;
                 break;
             }
             
+            aux= (mv.M[ubiMem++] & 0xFF);
             for (i; i>0 ; i--){
-                aaaaaaaaaa voy en este y el de setop
+                aux= (aux<<8) | (mv.M[ubiMem++] & 0xFF);
             }
-            aux= (mv.M[ubiMem] & 0xFF);
-            aux= (aux<<8) | (mv.M[ubiMem+1] & 0xFF);
-            aux= (aux<<8) | (mv.M[ubiMem+2] & 0xFF);
-            aux= (aux<<8) | (mv.M[ubiMem+3] & 0xFF);
             break;
 
         case(0b01): //inmediato
@@ -730,11 +759,6 @@ int getOp(TMV mv, TOp op){
 
         case(0b10): //registro
             aux=  mv.R[ (unsigned int) (op.priByte & 0b1111) ];
-            if ( (op.priByte & 0xF)<0 || (op.priByte & 0xF)>15 ){ ///CHEQUEAR SI FUNCIONA
-                printf("ERROR. Se quiere meter a un registro <0 o >15 \n");
-                mv.error[2]=1;
-                break;
-            }
             switch(op.priByte>>4 & 0b11){ //evalua los bits en las posiciones 5 y 6, contando de menor a mayor. Sector del registro a leer
                 case(0b00): //EAX 4bytes mas significativos
                     break;
@@ -904,33 +928,15 @@ void RND(TMV *mv, TOp op[2]){ //preguntar
 }
 
 void guardaEnUbi(TMV *mv, int ubicacion, unsigned int tam, int dato){
-    switch(tam){ //esto podria ser un while decreciente y quedaria muy clean
-        case 1:
-            mv->M[ubicacion]= (dato & 0xFF) ;
-            break;
-        case 2:
-            mv->M[ubicacion]= ((dato>>8 )& 0xFF) ;
-            mv->M[ubicacion+1]= (dato & 0xFF) ;
-            break;
-        case 3:
-            mv->M[ubicacion]= ((dato>>16 )& 0xFF) ;
-            mv->M[ubicacion+1]= ((dato>>8 )& 0xFF) ;
-            mv->M[ubicacion+2]= (dato & 0xFF) ;
-            break;
-        case 4: //0x12378623
-            mv->M[ubicacion]= ((dato>>24 )& 0xFF) ; //12
-            //printf("mv->M[%d]= %X\n",ubicacion, mv->M[ubicacion]);
-            mv->M[ubicacion+1]= ((dato>>16 )& 0xFF) ; //37
-            //printf("mv->M[%d]= %X\n",ubicacion+1, mv->M[ubicacion+1]);
-            mv->M[ubicacion+2]= ((dato>>8 )& 0xFF) ; //86
-            //printf("mv->M[%d]= %X\n",ubicacion+2, mv->M[ubicacion+2]);
-            mv->M[ubicacion+3]= (dato & 0xFF) ; //23
-            //printf("mv->M[%d]= %X\n",ubicacion+3, mv->M[ubicacion+3]);
-            break;
-        default:
-            printf("ERROR: Mas de 4 bytes por celda asignado");
-            mv->error[2]=1;
-            break;
+    if(tam>4){ //memoria insuficiente, guarda hasta donde puede
+        printf("ERROR: Mas de 4 bytes por celda asignado");
+        mv->error[2]=1;
+    }else{
+        tam= tam*8;
+        while(tam>0 && (ubicacion< (mv->ramKiB *1024)) ){
+            tam-=8; //la ultima iteracion (tam=1) debe ser n=0
+            mv->M[ubicacion++]= ((dato>>(tam) ) & 0xFF) ; 
+        }
     }
 }
 
@@ -1093,7 +1099,7 @@ void SYS(TMV *mv, TOp op[2]){
             if(((mv->R[10] & 0xFFFF) > 0) && ((mv->R[10] & 0xFFFF) < 16)){
                 for(i=0; i< CL; i++){ //cantidad de iteraciones = CL
                     leeDeUbi(mv, ubicacion, CH, &dato);
-                    printf("Dato de tama�o %d bytes, celda nro %d, en M[%X]: ",CH,i,ubicacion);
+                    printf("Dato de tama�o %d bytes, celda nro %d, en M[%04X]: ",CH,i,ubicacion);
                     if ((mv->R[10] & 0x8)==8)
                         printf("%%%X ", dato);
                     if ((mv->R[10] & 0x4)==4)
@@ -1120,14 +1126,35 @@ void SYS(TMV *mv, TOp op[2]){
             }
 
             break;
-        case 3: ///STRING READ
+        case 3: //STRING READ
+            char *leeStr;
+            unsigned int tam;
+            tam=  mv->R[12]; tam= (tam & 0xFFFF); //En CX (16 bits) se especifica la cantidad máxima de caracteres a leer
+            if ( tam == 0xFFFF ) 
+                tam= (mv->ramKiB *1024)-ubicacion-2 ;//tamaño maximo de la memoria a ocupar, resta 2 porque uno es el indice 0 y otro es para guardar '\0' al final
+            
+                leeStr= (char*)malloc( (tam) * sizeof(char));
+            gets(leeStr);
 
+            if( (ubicacion+tam) >= (mv->ramKiB *1024) ) //memoria insuficiente, guarda hasta donde puede
+                tam= (mv->ramKiB *1024)-ubicacion-2 ; 
+            
+            int i=0;
+            while(tam>i && (ubicacion< (mv->ramKiB *1024)) && ( leeStr[i] != '\0') ){
+                mv->M[ubicacion++]= (leeStr[i] & 0xFF) ;
+                i++;
+            }
+            mv->M[ubicacion]='\0';
             break;
-        case 4: ///STRING WRITE
-
+    
+        case 4: //STRING WRITE
+            printf("String write desde M[%04X]: ",ubicacion);
+            while( (ubicacion< (mv->ramKiB *1024)) && (mv->M[ubicacion]!=0x00) )
+                printf("%c",mv->M[ubicacion++]);
+            printf("\n");
             break;
-        case 7: ///CLEAR SCREEN
-
+        case 7: 
+            system("@cls||clear");
             break;
         case 15: //BREAKPOINT
                 if (strcmp(mv->nombreImg,"no") != 0){
@@ -1143,7 +1170,8 @@ void SYS(TMV *mv, TOp op[2]){
                         inicializaVectorFunc(func);
                         if ( hayError(*mv)==0 && (((mv->R[5]>>16) & 0xffff) == (( mv->TDS[baseMasOffset(mv->R[0])] >>16)&0xFFFF )) && (mv->R[5] & 0xffff)<(mv->TDS[baseMasOffset(mv->R[0])] & 0xffff)){
                             //if IP2primerosBytes==0 es decir apunta al TDS[R[0]], asumimos q ahi esta el CS && offset<size
-                            avanzaUnaInstruccion(mv,func);
+                            
+                            avanzaUnaInstruccion(mv,func); //si entra a otro SYS 15 se vuelve inception
                             guardaImagen(*mv);
                             //printf("guarda imagen\n");
 
@@ -1253,7 +1281,7 @@ void STOP(TMV *mv, TOp op[2]){
 }
 
 void PUSH (TMV *mv, TOp op[2]){
-    mv->R[6] =- 4;
+    mv->R[6] -= 4;
     if (mv->R[6] < mv->R[3])
         mv->error[4]= 1;
     else{
@@ -1261,14 +1289,14 @@ void PUSH (TMV *mv, TOp op[2]){
         aux.tipo= 0;
         aux.priByte= 0b00000110; //emula un operando de memoria long con sus bits seteados en 6, para ir al R[SP]
         aux.segByte= aux.terByte= 0;
-        setOp(mv,aux, getOp(*mv,op[1]) );
+        setOp(mv, &aux, getOp(*mv,op[1]) );
     }
 
 }
 
 void POP (TMV *mv, TOp op[2]){
     
-    if ( baseMasOffset(mv->R[6]) >= ( baseMasOffset( [baseMasOffset(mv->R[3])] ) ) ) // i could use (a >= (b-3) )para q tmb chequee q lea los 4 bytes enteritos
+    if ( baseMasOffset(mv->R[6]) >= ( baseMasOffset( mv->TDS[baseMasOffset(mv->R[3])] ) ) ) // i could use (a >= (b-3) )para q tmb chequee q lea los 4 bytes enteritos
     //pero no lo hago porque siempre se pushea y popea de a celdas de a 4 bytes
         mv->error[5]= 1;
     else{
@@ -1276,8 +1304,8 @@ void POP (TMV *mv, TOp op[2]){
         aux.tipo= 0;
         aux.priByte= 0b00000110; //emula un operando de memoria long con sus bits seteados en 6, para ir al R[SP]
         aux.segByte= aux.terByte= 0;
-        setOp(mv, op[1], getOp(*mv,aux));
-        mv->R[6] =+ 4;
+        setOp(mv, &op[1], getOp(*mv,aux));
+        mv->R[6]+= 4;
         
     }
 
@@ -1297,7 +1325,7 @@ void CALL(TMV *mv, TOp op[2]){
 
 }
 
-void RET(TMV *mv, TOp[2]){
+void RET(TMV *mv, TOp op[2]){
     op[1].tipo= 0;
     op[1].priByte= 0b00000101; //pone al op[1] como uno de memoria long con sus bits seteados en 5, para ir al R[IP]
     op[1].segByte= op[1].terByte= 0;

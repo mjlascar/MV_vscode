@@ -65,5 +65,7 @@ void LDL(TMV *mv, TOp op[2]);
 void LDH(TMV *mv, TOp op[2]);
 void NOT(TMV *mv, TOp op[2]);
 void STOP(TMV *mv, TOp op[2]);
-//void PUSH(TMV *mv, TOp op[2]); //NUEVO
-//void POP (TMV *mv, TOp op[2]); //NUEVO
+void PUSH(TMV *mv, TOp op[2]);
+void POP(TMV *mv, TOp op[2]);
+void CALL(TMV *mv, TOp op[2]);
+void RET(TMV *mv, TOp op[2]);

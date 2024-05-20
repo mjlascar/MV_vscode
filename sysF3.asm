@@ -1,0 +1,11 @@
+\\DATA 3000
+\\EXTRA 0
+marcos equ "lascar"
+
+MOV EDX, DS
+SYS 15
+ADD EDX, 6
+MOV [EDX], 3
+MOV EAX, [EDX]
+SYS 15
+MOV EBX, [6]

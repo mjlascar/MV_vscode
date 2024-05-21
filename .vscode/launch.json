@@ -6,8 +6,8 @@
             "request": "launch",
             "program": "${fileDirname}\\${fileBasenameNoExtension}.exe",
             "args": [
-                "string2.vmx",
-                "stringi.vmi"
+                "sample2.vmx",
+                //"stringi.vmi",
                 //"-d"
             ],
             "stopAtEntry": false,

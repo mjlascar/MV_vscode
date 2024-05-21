@@ -19,7 +19,6 @@ TMV createMV(char* fname, char* vmiName, unsigned int SIZE_MEM){
             fseek(arch,5,SEEK_SET);
             fread(&aux,sizeof(char),1,arch);
             version= (unsigned short int) aux;
-            printf("linea ~22 la version es:%u\n",version);
 
             memcpy(maq.R, valores_R, sizeof(valores_R));
             maq.error[0] = maq.error[1] = maq.error[2] = maq.error[3] = maq.error[4] = maq.error[5] = maq.error[6] = 0;
@@ -46,7 +45,6 @@ TMV createMV(char* fname, char* vmiName, unsigned int SIZE_MEM){
 
                 if ((tamCodigo+tamDS+tamES+tamSS+tamKS) <= SIZE_MEM){
                     n=0; //contador de segmentos existentes
-                    printf("cuidado aca abajo, y en general estos calculos de offset, linea ~55\n");
                     if(tamKS>0){
                         maq.R[4]=0x00000000; //KS
                         maq.TDS[n]= 0 | tamKS;
@@ -390,7 +388,7 @@ void avanzaUnaInstruccion(TMV *mv, TFunc func){
         mv->error[2]=1;
 
 
-    printf("codOp=%u, errores?:%u\n", codOp, hayError(*mv));
+    //printf("codOp=%u, errores?:%u\n", codOp, hayError(*mv));
     //for (i=0; i<50; i++)
     //    printf("M[%d]=%X ", i, mv->M[i]);
     //printf("\n");
@@ -461,8 +459,14 @@ void disAssembler(TMV *mv, char* fname){
             
             printf("| \"");
 
-            while( mv->M[i]!=0x00 )
-                printf("%c",mv->M[i++]);
+            while( mv->M[i]!=0x00 ){
+                if ((mv->M[i]>31) && (mv->M[i]<127))
+                    printf("%c",mv->M[i++]);
+                else{
+                    printf(".");
+                    i++;
+                }
+            }
             printf("\"\n");
             i++;
         }
@@ -666,7 +670,7 @@ void setOp(TMV *mv, TOp *op, int nro){
             offset+= offsetReg;
 
             baseEnReg= (baseEnReg>>16)& 0xFFFF ;
-            printf("va a guardar data en el segmento TDS[%u]",baseEnReg);
+            //printf("va a guardar data en el segmento TDS[%u]",baseEnReg);
 
             ubicacion= ((mv->TDS[ baseEnReg ]>>16) & 0xFFFF) + offset;
             if ( offset<0 || (ubicacion >= ((mv->TDS[ baseEnReg ]>>16) + (mv->TDS[ baseEnReg ] & 0xFFFF))) ){ //IF NOT se cae del segmento
@@ -740,7 +744,7 @@ int getOp(TMV mv, TOp op){
             offset+= offsetReg;
 
             baseEnReg= (baseEnReg>>16) & 0xFFFF ;
-            printf("va a retirar data del segmento TDS[%u]",baseEnReg);
+            //printf("va a retirar data del segmento TDS[%u]",baseEnReg);
 
             ubiMem= ((mv.TDS[ baseEnReg ] >>16) & 0xFFFF) + offset;
             if ( offset<0 || (ubiMem >= ((mv.TDS[ baseEnReg ]>>16) + (mv.TDS[ baseEnReg ] & 0xFFFF))) ){ //IF NOT se cae del Segmento
@@ -816,7 +820,7 @@ int modificaCC(int aux){
 
 void MOV(TMV *mv, TOp op[2]){
     setOp(mv, &op[0], getOp(*mv, op[1]));
-    printf("se hizo MOV un operando de tipo %X en op[0] con valores en hexa %X %X %X\n", op[0].tipo, op[0].priByte, op[0].segByte, op[0].terByte);
+    //printf("se hizo MOV un operando de tipo %X en op[0] con valores en hexa %X %X %X\n", op[0].tipo, op[0].priByte, op[0].segByte, op[0].terByte);
     //printf("y guardo un: %d \n", getOp(*mv,op[0]));
 }
 
@@ -993,9 +997,9 @@ void leeHeaderImagen(FILE* arch, unsigned short int *version, unsigned short int
                 printf("se comio el primer byte del codigo\n");
                 break;
         }
-        printf("paso nro: %u // aux: #%u '%c LEYO EL HEADER CON version:%u, tamRAM:%u, identif:%s \n",cont , aux, aux, *version, *tamRAM, identificador);
+        //printf("paso nro: %u // aux: #%u '%c LEYO EL HEADER CON version:%u, tamRAM:%u, identif:%s \n",cont , aux, aux, *version, *tamRAM, identificador);
     }while (!feof(arch) && cont<7);
-    printf("LEYO EL HEADER CON version:%u, tamRAM:%u, identif:%s \n",*version, *tamRAM, identificador);
+    //printf("LEYO EL HEADER CON version:%u, tamRAM:%u, identif:%s \n",*version, *tamRAM, identificador);
 }
 
 void guardaImagen(TMV mv){
@@ -1008,20 +1012,20 @@ void guardaImagen(TMV mv){
     sprintf(identificador, "VMI24");
     tamRAM= mv.ramKiB;
 
-    printf("LO QUE VA A GRABAR ES version:%u, tamRAM:%u, identif:%s \n",version, tamRAM, identificador);
+    //printf("LO QUE VA A GRABAR ES version:%u, tamRAM:%u, identif:%s \n",version, tamRAM, identificador);
     if ( (arch= fopen(mv.nombreImg,"wb")) != NULL){
-        printf("arranca a grabar \n");
+        //printf("arranca a grabar \n");
         //fwrite(identificador, 1/*sizeof(char)*/, 5, arch); //guarda en los bytes 0 a 4 VMIej ?? hope so. antes hacia bucle de a 1 con while (4>=i++) y identificador[i-1]
         i=0;
         while (4>=i++)
             fwrite(&identificador[i-1], 1/*sizeof(char)*/, 1, arch);
-        printf("grabo el identif \n");
+        //printf("grabo el identif \n");
         fwrite(&version, 1, 1, arch); //el bytes menos significativos de version
         identificador[0]= ( (tamRAM>>8) & 0xFF);
         identificador[1]= (tamRAM & 0xFF); //uso el identificador [0] y [1] como char auxiliar, para no crear otra variable
         fwrite(&identificador[0], 1, 1, arch);
         fwrite(&identificador[1], 1, 1, arch); //los dos bytes menos significativos de tamRAM
-        printf("grabo la version y la ram \n");
+        //printf("grabo la version y la ram \n");
 
         for (i=0; i<16; i++){
             aux= changeEndian( mv.R[i] );
@@ -1034,7 +1038,7 @@ void guardaImagen(TMV mv){
         tamRAM= mv.ramKiB*1024;
         for (i=0; i<tamRAM; i++)
             fwrite(&mv.M[i], 1/*sizeof(char)*/, 1, arch);
-        printf("imagen guardada\n");
+        //printf("imagen guardada\n");
         fclose(arch);
     }else
         printf("El archivo .vmi fallo al abrir para su grabado\n");
@@ -1138,6 +1142,7 @@ void SYS(TMV *mv, TOp op[2]){
                 tam= (mv->ramKiB *1024)-ubicacion-2 ;//tamaño maximo de la memoria a ocupar, resta 2 porque uno es el indice 0 y otro es para guardar '\0' al final
             
                 leeStr= (char*)malloc( (tam) * sizeof(char));
+            printf("Leo tu String (tamanio max %u) y guardo en M[%04X]: ", tam, ubicacion);
             gets(leeStr);
 
             if( (ubicacion+tam) >= (mv->ramKiB *1024) ) //memoria insuficiente, guarda hasta donde puede
@@ -1153,8 +1158,14 @@ void SYS(TMV *mv, TOp op[2]){
     
         case 4: //STRING WRITE
             printf("String write desde M[%04X]: ",ubicacion);
-            while( (ubicacion< (mv->ramKiB *1024)) && (mv->M[ubicacion]!=0x00) )
-                printf("%c",mv->M[ubicacion++]);
+            while( (ubicacion< (mv->ramKiB *1024)) && (mv->M[ubicacion]!=0x00) ){
+                if ((mv->M[ubicacion]>31) && (mv->M[ubicacion]<127))
+                    printf("%c", mv->M[ubicacion++]);
+                else{
+                    printf(".");
+                    ubicacion++;
+                }
+            }
             printf("\n");
             break;
         case 7: 

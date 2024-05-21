@@ -486,7 +486,7 @@ void disAssembler(TMV *mv, char* fname){
             ubiAux+= (int) ( (~tamOpA) & 0b11); //le suma los que leyo del anterior
             i+= (int) ( (~tamOpA) & 0b11);
 
-            mv->R[5]= mv->R[5] & 0xffff0000;
+            mv->R[5]= mv->TDS[mv->R[5] & 0xffff0000];
             mv->R[5]= mv->R[5] | (i+1); //setea el IP en el siguiente
 
             if ( (codOp>=0 && codOp<=12) || (codOp>=16 && codOp<=31 ) ){
@@ -541,8 +541,23 @@ void setStrDeReg(TMV mv, char byte, char str[6]){
         case(1):
             sprintf(str, "%s", "DS");
             break;
+        case(2):
+            sprintf(str, "%s", "ES");
+            break;
+        case(3):
+            sprintf(str, "%s", "SS");
+            break;
+        case(4):
+            sprintf(str, "%s", "KS");
+            break;
         case(5):
             sprintf(str, "%s", "IP");
+            break;
+        case(6):
+            sprintf(str, "%s", "SP");
+            break;
+        case(7):
+            sprintf(str, "%s", "BP");
             break;
         case(8):
             sprintf(str, "%s", "CC");

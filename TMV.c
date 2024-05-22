@@ -423,86 +423,80 @@ void execute(TMV *mv){
 
 }
 
-void disAssembler(TMV *mv, char* fname){
+void disAssembler(TMV *mv){
     short int codOp;
-    char tamOpA, tamOpB, aux;
-    FILE* arch;
-    unsigned short int version, tamCodigo, asd, tamKS=0, offsetEP;
-    char identificador[6]; // son 6 por el \n??
+    char tamOpA, tamOpB;
+    unsigned short int tamCodigo, tamKS=0, offsetEP;
     TOp op[2];
     int ubiAux, i, j;
     char *funcDisass[32], str[6];
 
-    if ( (arch= fopen(fname,"rb")) != NULL){
+    tamCodigo= (mv->TDS[ (mv->R[0]>>16) & 0xFFFF ] & 0xFFFF) - ( (mv->TDS[ (mv->R[0]>>16) & 0xFFFF ] >>16) & 0xFFFF);
+    offsetEP= (mv->R[5] & 0xFFFF);
+    if (mv->R[4]!=-1)
+        tamKS= (mv->TDS[ (mv->R[4]>>16) & 0xFFFF ] & 0xFFFF) - ( (mv->TDS[ (mv->R[4]>>16) & 0xFFFF ] >>16) & 0xFFFF);
+    
 
-        fseek(arch,5,SEEK_SET);
-        fread(&aux,sizeof(char),1,arch);
-        version= (unsigned short int) aux;
-        fseek(arch,0,SEEK_SET);
-        if(version==1)
-            leeHeaderV1(arch, &tamCodigo, identificador);
+
+    i=0;
+    while(i<(tamKS-1)){
+        j=i;
+        printf("[%04X] ",i);
+        while( (mv->M[j]!=0x00) && (j<(i+6)) )
+            printf("%02X ", (mv->M[j++] & 0xFF ));
+
+        if(mv->M[j]!=0x00)
+            printf(".. ");
         else
-            leeHeaderV2(arch, &tamCodigo, &asd, &asd, &asd, &tamKS, &offsetEP, identificador);
-        fclose(arch);
+            printf("00 ");
+        
+        printf("| \"");
 
-        i=0;
-        while(i<(tamKS-1)){
-            j=i;
-            printf("[%04X] ",i);
-            while( (mv->M[j]!=0x00) && (j<(i+6)) )
-                printf("%02X ", (mv->M[j++] & 0xFF ));
-
-            if(mv->M[j]!=0x00)
-                printf(".. ");
-            else
-                printf("00 ");
-            
-            printf("| \"");
-
-            while( mv->M[i]!=0x00 ){
-                if ((mv->M[i]>31) && (mv->M[i]<127))
-                    printf("%c",mv->M[i++]);
-                else{
-                    printf(".");
-                    i++;
-                }
+        while( mv->M[i]!=0x00 ){
+            if ((mv->M[i]>31) && (mv->M[i]<127))
+                printf("%c",mv->M[i++]);
+            else{
+                printf(".");
+                i++;
             }
-            printf("\"\n");
-            i++;
         }
-
-        inicializaVectorFuncDisass(funcDisass);
-        for(i=0; i<tamCodigo; i++){
-            if (i==offsetEP)
-                printf(">");
-            leeInstruccion(mv, &codOp, &tamOpA, &tamOpB);
-            //ubiAux= baseMasOffset(mv->R[5]);
-            ubiAux= ((mv->TDS[(mv->R[5]>>16) & 0xFFFF]>>16 )& 0xFFFF) + (mv->R[5] & 0xFFFF);
-            printf("[%04X] %X ", (short int)ubiAux &0xFFFF , (mv->M[ubiAux] &0xFF));
-            op[1]= guardaOperandosYDisass(mv, tamOpB, ubiAux);
-            ubiAux+= (int) ( (~tamOpB) & 0b11); //le suma los que leyo del anterior
-            i+= (int) ( (~tamOpB) & 0b11);
-            op[0]= guardaOperandosYDisass(mv, tamOpA, ubiAux);
-            ubiAux+= (int) ( (~tamOpA) & 0b11); //le suma los que leyo del anterior
-            i+= (int) ( (~tamOpA) & 0b11);
-
-            mv->R[5]= mv->TDS[mv->R[5] & 0xffff0000];
-            mv->R[5]= mv->R[5] | (i+1); //setea el IP en el siguiente
-
-            if ( (codOp>=0 && codOp<=12) || (codOp>=16 && codOp<=31 ) ){
-                inicializaVectorFuncDisass(funcDisass); // lo inicializa cada vez q va a imprimir pq sino a veces se buguea y reemplaza los contenidos
-                printf("\t| %s\t", funcDisass[codOp]);
-                imprimeOp(*mv, op[0], str);
-                printf("%s, ", str);
-                imprimeOp(*mv, op[1], str);
-                printf("%s", str);
-            }else{
-                printf("mm no esta el mnemonico de este codigo de operacion!! (codOp= %d)", codOp);
-                mv->error[2]=1;
-            }
-            printf("\n");
-        }
+        printf("\"\n");
+        i++;
     }
+
+    inicializaVectorFuncDisass(funcDisass);
+    mv->R[5] = (mv->R[5] & 0xFFFF0000);
+    for(i=0; i<tamCodigo; i++){
+        if (i==offsetEP)
+            printf(">");
+        leeInstruccion(mv, &codOp, &tamOpA, &tamOpB);
+        //ubiAux= baseMasOffset(mv->R[5]);
+        ubiAux= ((mv->TDS[(mv->R[5]>>16) & 0xFFFF]>>16 )& 0xFFFF) + (mv->R[5] & 0xFFFF);
+        printf("[%04X] %X ", (short int)ubiAux &0xFFFF , (mv->M[ubiAux] &0xFF));
+        op[1]= guardaOperandosYDisass(mv, tamOpB, ubiAux);
+        ubiAux+= (int) ( (~tamOpB) & 0b11); //le suma los que leyo del anterior
+        i+= (int) ( (~tamOpB) & 0b11);
+        op[0]= guardaOperandosYDisass(mv, tamOpA, ubiAux);
+        ubiAux+= (int) ( (~tamOpA) & 0b11); //le suma los que leyo del anterior
+        i+= (int) ( (~tamOpA) & 0b11);
+
+        mv->R[5]= mv->R[5] & 0xffff0000;
+        mv->R[5]= mv->R[5] | (i+1); //setea el IP en el siguiente
+
+        if ( (codOp>=0 && codOp<=12) || (codOp>=16 && codOp<=31 ) ){
+            inicializaVectorFuncDisass(funcDisass); // lo inicializa cada vez q va a imprimir pq sino a veces se buguea y reemplaza los contenidos
+            printf("\t| %s\t", funcDisass[codOp]);
+            imprimeOp(*mv, op[0], str);
+            printf("%s, ", str);
+            imprimeOp(*mv, op[1], str);
+            printf("%s", str);
+        }else{
+            printf("mm no esta el mnemonico de este codigo de operacion!! (codOp= %d)", codOp);
+            mv->error[2]=1;
+        }
+        printf("\n");
+    }
+    
 }
 
 void imprimeOp(TMV mv, TOp op, char str[6]){
@@ -673,7 +667,7 @@ void setOp(TMV *mv, TOp *op, int nro){
 
     switch(op->tipo){
         case(0b00): //memoria
-            i = (unsigned short int) (~(op->priByte>>6) & 0b11); //cantBytes a guardar -1
+            i = (short int) (~(op->priByte>>6) & 0b11); //cantBytes a guardar -1
             baseEnReg=  0 | mv->R[ (unsigned int) (op->priByte & 0b1111) ]; //usually DS, osea 0x1
             //ACLARACION: SI O SI EL REGISTRO AL Q VA TIENE Q APUNTAR A UN LUGAR EN MEMORIA; RELATIVA AL COMIENZO DE UN SEGMENTO (TDS). pag 3 pdf lenguahe asm
             offset= (op->segByte&0xFF);
@@ -693,15 +687,14 @@ void setOp(TMV *mv, TOp *op, int nro){
                 break;
             }
             //printf("el int q esta por ser copiado es %d\n", nro);
-            mv->M[ubicacion++] = (nro>>24 & 0xFF);
-            n=16;
-            for (i; i>0 ; i--){
-                mv->M[ubicacion++] = (nro>>n & 0xFF); //primera iteracion: >>16, 2da it: >>8, 3ra it: >>0
-                n= n-8;
+            
+            n=0;
+            i=i+1;
+            for (i ; i>0 ; i--){
+                mv->M[ubicacion+i-1] = (nro>>n & 0xFF);
+                n+= 8;
             }
-            //mv->M[ubicacion] = (nro>>16 & 0xFF);
-            //mv->M[ubicacion+1] = (nro>>8 & 0xFF);
-            //mv->M[ubicacion+2] = (nro & 0xFF);
+
             break;
 
         case(0b10): //registro
@@ -1076,7 +1069,7 @@ void SYS(TMV *mv, TOp op[2]){
                 case 1: //DECIMAL
                     for(i=0; i< CL; i++){ //cantidad de iteraciones = CL
                         dato=0;
-                        printf("Dato de tama�o %d bytes, de la celda %d en decimal: ",CH,i);
+                        printf("Dato de tama�o %d bytes, de la celda %d en decimal M[%04X]: ",CH,i,ubicacion);
                         scanf("%d", &dato); //decimal, tama�o de lectura = CH
                         printf("\n");
                         guardaEnUbi(mv, ubicacion, CH, dato);
@@ -1086,7 +1079,7 @@ void SYS(TMV *mv, TOp op[2]){
                 case 2: //CHAR
                     for(i=0; i< CL; i++){ //cantidad de iteraciones = CL
                         dato=0;
-                        printf("Dato de tama�o %d bytes, de la celda %d en char: ",CH,i);
+                        printf("Dato de tama�o %d bytes, de la celda %d en char M[%04X]: ",CH,i,ubicacion);
                         scanf("%c", &dato); //char, tama�o de lectura = CH
                         printf("\n");
                         guardaEnUbi(mv, ubicacion, CH, dato);
@@ -1096,7 +1089,7 @@ void SYS(TMV *mv, TOp op[2]){
                 case 4: //OCTAL
                     for(i=0; i< CL; i++){ //cantidad de iteraciones = CL
                         dato=0;
-                        printf("Dato de tama�o %d bytes, de la celda %d en octal: ",CH,i);
+                        printf("Dato de tama�o %d bytes, de la celda %d en octal M[%04X]: ",CH,i,ubicacion);
                         scanf("%o", &dato); //octal, tama�o de lectura = CH
                         printf("\n");
                         guardaEnUbi(mv, ubicacion, CH, dato);
@@ -1106,7 +1099,7 @@ void SYS(TMV *mv, TOp op[2]){
                 case 8://hexa
                     for(i=0; i< CL; i++){ //cantidad de iteraciones = CL
                         dato=0;
-                        printf("Dato de tama�o %d bytes, de la celda %d en hexa: ",CH,i);
+                        printf("Dato de tama�o %d bytes, de la celda %d en hexa M[%04X]: ",CH,i,ubicacion);
                         scanf("%X", &dato); //hexa, tama�o de lectura = CH
                         printf("\n");
                         guardaEnUbi(mv, ubicacion, CH, dato);
@@ -1191,8 +1184,8 @@ void SYS(TMV *mv, TOp op[2]){
                     char finciclo= 0;
                     char auxc;
                     guardaImagen(*mv);
-                    //printf("guarda imagen\n");
                     fflush(stdin);
+                    printf("Imagen guardada. Aprete 'q' para salir, 'g' para continuar, o cualquier letra para continuar\n");
                     scanf("%c",&auxc);
 
                     while (auxc!='g' && auxc!='q' && auxc!='G' && auxc!='Q' && finciclo!=1){
@@ -1203,8 +1196,7 @@ void SYS(TMV *mv, TOp op[2]){
                             
                             avanzaUnaInstruccion(mv,func); //si entra a otro SYS 15 se vuelve inception
                             guardaImagen(*mv);
-                            //printf("guarda imagen\n");
-
+                            printf("Imagen guardada. Aprete 'q' para salir, 'g' para continuar, o cualquier letra para continuar\n");
                             scanf("%c",&auxc);
                         }
                         else

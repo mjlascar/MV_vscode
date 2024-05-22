@@ -24,7 +24,7 @@ int main(int argc, char *argv[]){ //vmx.exe [filename.vmx] [filename.vmi] [m=M] 
 
 
     if  (strcmp(argv[argc-1], "-d") == 0)
-        disAssembler(&mv, argv[1]);
+        disAssembler(&mv);
     else {
         execute(&mv);
         //printf("\nbueno, se q la mem es de tamanio %u chars, same as kb, a ver cuanto da el calculo\n", SIZE_MEM);

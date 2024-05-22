@@ -6,9 +6,9 @@
             "request": "launch",
             "program": "${fileDirname}\\${fileBasenameNoExtension}.exe",
             "args": [
-                "sample2.vmx",
-                //"stringi.vmi",
-                //"-d"
+                "sampi4.vmx",
+                //"sampi3.vmi",
+                "-d"
             ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

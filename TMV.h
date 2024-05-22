@@ -24,7 +24,7 @@ void KSaMemoria(TMV*, FILE*, unsigned short int);
 void inicializaVectorFunc(TFunc);
 void inicializaVectorFuncDisass(char *funcDisass[32]);
 int hayError(TMV);
-void disAssembler(TMV*, char*);
+void disAssembler(TMV*);
 void imprimeOp(TMV mv, TOp op, char str[6]);
 void setStrDeReg(TMV mv, char byte, char str[6]);
 void avanzaUnaInstruccion(TMV *mv, TFunc func);

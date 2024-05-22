@@ -6,9 +6,9 @@
             "request": "launch",
             "program": "${fileDirname}\\${fileBasenameNoExtension}.exe",
             "args": [
-                "sampi4.vmx",
+                "sampi2.vmx",
                 //"sampi3.vmi",
-                "-d"
+                //"-d"
             ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

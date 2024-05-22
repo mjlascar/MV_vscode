@@ -735,7 +735,7 @@ void setOp(TMV *mv, TOp *op, int nro){
 
 int getOp(TMV mv, TOp op){
     int aux=0, baseEnReg, offset, offsetReg, ubiMem;
-    unsigned short int i;
+    unsigned short int i,j;
 
     switch(op.tipo){
         case(0b00): //memoria
@@ -761,9 +761,11 @@ int getOp(TMV mv, TOp op){
             }
             
             aux= (mv.M[ubiMem++] & 0xFF);
+            j=i;
             for (i; i>0 ; i--){
                 aux= (aux<<8) | (mv.M[ubiMem++] & 0xFF);
             }
+            aux= aux<<((4-j-1)*8); aux= aux>>((4-j-1)*8);
             break;
 
         case(0b01): //inmediato
@@ -889,9 +891,12 @@ void DIV(TMV *mv, TOp op[2]){  //exit o que
 }
 
 void CMP(TMV *mv, TOp op[2]){
-    int aux;
+    int aux, auxb, auxc;
     //printf("el CMP es entre: %d y %d\n", getOp(*mv,op[0]), getOp(*mv,op[1]));
-    aux= getOp(*mv, op[0]) - getOp(*mv, op[1]); //hay q chequear si no se le complica el complemento A2, si se le complica probar poniendo casteando en otras variables (int)
+    auxb= getOp(*mv, op[0]);
+    auxc= getOp(*mv, op[1]); //hay q chequear si no se le complica el complemento A2, si se le complica probar poniendo casteando en otras variables (int)
+    aux= auxb-auxc;
+    
     //printf("La resta devolvio %d.\n", aux);
     mv->R[8]= modificaCC(aux);
     //printf("y en CC guardo un: %X \n", mv->R[8]);
@@ -1335,7 +1340,7 @@ void POP (TMV *mv, TOp op[2]){
 
 void CALL(TMV *mv, TOp op[2]){
     TOp ip;
-    ip.tipo= 0;
+    ip.tipo= 0b10;
     ip.priByte= 0b00000101; //emula un operando de memoria long con sus bits seteados en 5, para ir al R[IP]
     ip.segByte= ip.terByte= 0;
 
@@ -1348,7 +1353,7 @@ void CALL(TMV *mv, TOp op[2]){
 }
 
 void RET(TMV *mv, TOp op[2]){
-    op[1].tipo= 0;
+    op[1].tipo= 0b10;
     op[1].priByte= 0b00000101; //pone al op[1] como uno de memoria long con sus bits seteados en 5, para ir al R[IP]
     op[1].segByte= op[1].terByte= 0;
     POP(mv,op);

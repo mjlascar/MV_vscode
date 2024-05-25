@@ -431,10 +431,10 @@ void disAssembler(TMV *mv){
     int ubiAux, i, j;
     char *funcDisass[32], str[6];
 
-    tamCodigo= (mv->TDS[ (mv->R[0]>>16) & 0xFFFF ] & 0xFFFF) - ( (mv->TDS[ (mv->R[0]>>16) & 0xFFFF ] >>16) & 0xFFFF);
+    tamCodigo= (mv->TDS[ (mv->R[0]>>16) & 0xFFFF ] & 0xFFFF);
     offsetEP= (mv->R[5] & 0xFFFF);
     if (mv->R[4]!=-1)
-        tamKS= (mv->TDS[ (mv->R[4]>>16) & 0xFFFF ] & 0xFFFF) - ( (mv->TDS[ (mv->R[4]>>16) & 0xFFFF ] >>16) & 0xFFFF);
+        tamKS= (mv->TDS[ (mv->R[4]>>16) & 0xFFFF ] & 0xFFFF);
     
 
 
@@ -510,6 +510,19 @@ void imprimeOp(TMV mv, TOp op, char str[6]){
             offset= op.segByte;
             offset= (offset<<8) | (op.terByte); //suma el offset que lleva el operando en si
             offset= offset<<16; offset= offset>>16; //propaga el signo en caso de ser negativo
+            switch((op.priByte>>6) & 0b11){
+                case(0b00):
+                    printf("l");
+                    break;
+                case(0b10):
+                    printf("w");
+                    break;
+                case(0b11):
+                    printf("b");
+                    break;
+                default:
+                    break;
+            }
             if (offset<0)
                 sprintf(str, "[%s%d]", aux, offset);
             else
